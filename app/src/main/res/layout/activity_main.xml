@@ -71,27 +71,23 @@
                     android:textColor="#858585"
                     android:textSize="13sp" />
 
-                <ScrollView
+                <EditText
+                    android:id="@+id/codeEditor"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
-                    android:fillViewport="true">
-
-                    <EditText
-                        android:id="@+id/codeEditor"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="#1E1E1E"
-                        android:fontFamily="monospace"
-                        android:gravity="top|start"
-                        android:imeOptions="flagNoExtractUi"
-                        android:inputType="textMultiLine|textNoSuggestions"
-                        android:minHeight="1200dp"
-                        android:minWidth="750dp"
-                        android:padding="12dp"
-                        android:textColor="#D4D4D4"
-                        android:textColorHint="#777777"
-                        android:textSize="14sp" />
-                </ScrollView>
+                    android:background="#1E1E1E"
+                    android:fontFamily="monospace"
+                    android:gravity="top|start"
+                    android:hint="@string/editor_hint"
+                    android:imeOptions="flagNoExtractUi"
+                    android:inputType="textMultiLine|textNoSuggestions"
+                    android:minHeight="1200dp"
+                    android:minWidth="750dp"
+                    android:padding="12dp"
+                    android:scrollbars="vertical|horizontal"
+                    android:textColor="#D4D4D4"
+                    android:textColorHint="#777777"
+                    android:textSize="14sp" />
             </LinearLayout>
         </HorizontalScrollView>
 

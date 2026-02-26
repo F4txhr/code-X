@@ -3,4 +3,5 @@
     <string name="starter_code">fun main() {\n    println(&quot;Hello from Android code editor!&quot;)\n}\n</string>
     <string name="status_ready">UTF-8  •  Kotlin  •  Ln 1, Col 1</string>
     <string name="explorer_title">EXPLORER</string>
+    <string name="editor_hint">Mulai ketik kode di sini...</string>
 </resources>

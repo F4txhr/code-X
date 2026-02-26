@@ -111,7 +111,7 @@ class MainActivity : AppCompatActivity() {
         codeEditor.typeface = Typeface.MONOSPACE
         lineNumbers.typeface = Typeface.MONOSPACE
 
-        if (savedInstanceState == null) {
+        if (savedInstanceState == null || codeEditor.text.isNullOrBlank()) {
             codeEditor.setText(getString(R.string.starter_code))
         }
 
