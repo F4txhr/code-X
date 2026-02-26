@@ -10,4 +10,14 @@
         android:icon="@android:drawable/ic_menu_save"
         android:showAsAction="ifRoom"
         android:title="Save" />
+
+    <item
+        android:id="@+id/action_open_project"
+        android:title="Open Project Directory" />
+    <item
+        android:id="@+id/action_close_project"
+        android:title="Close Project" />
+    <item
+        android:id="@+id/action_new_project"
+        android:title="Create New Project Directory" />
 </menu>

@@ -4,6 +4,7 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.widget.ArrayAdapter
 import android.widget.EditText
@@ -26,6 +27,11 @@ class MainActivity : AppCompatActivity() {
         val uri: Uri
     )
 
+    private enum class PickerMode {
+        OPEN_PROJECT,
+        CREATE_PROJECT
+    }
+
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var codeEditor: EditText
     private lateinit var lineNumbers: TextView
@@ -37,6 +43,9 @@ class MainActivity : AppCompatActivity() {
     private val explorerFiles = mutableListOf<ExplorerFile>()
     private var activeFile: ExplorerFile? = null
 
+    private var pickerMode: PickerMode = PickerMode.OPEN_PROJECT
+    private var pendingProjectName: String = ""
+
     private val treePickerLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -45,15 +54,10 @@ class MainActivity : AppCompatActivity() {
             return@registerForActivityResult
         }
 
-        runCatching {
-            contentResolver.takePersistableUriPermission(
-                uri,
-                IntentFlags.readOnly
-            )
+        when (pickerMode) {
+            PickerMode.OPEN_PROJECT -> openProjectTree(uri)
+            PickerMode.CREATE_PROJECT -> createAndOpenProjectDirectory(uri)
         }
-
-        saveTreeUri(uri)
-        loadExplorerFromUri(uri)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,6 +96,22 @@ class MainActivity : AppCompatActivity() {
                 R.id.action_save -> {
                     val current = activeFile?.label ?: getString(R.string.status_no_file_open)
                     statusBar.text = getString(R.string.status_save_preview, current)
+                    true
+                }
+
+                R.id.action_open_project -> {
+                    pickerMode = PickerMode.OPEN_PROJECT
+                    treePickerLauncher.launch(null)
+                    true
+                }
+
+                R.id.action_close_project -> {
+                    closeCurrentProject()
+                    true
+                }
+
+                R.id.action_new_project -> {
+                    promptCreateProjectDirectory()
                     true
                 }
 
@@ -146,6 +166,7 @@ class MainActivity : AppCompatActivity() {
             .setMessage(R.string.permission_dialog_message)
             .setCancelable(false)
             .setPositiveButton(R.string.permission_dialog_grant) { _, _ ->
+                pickerMode = PickerMode.OPEN_PROJECT
                 treePickerLauncher.launch(null)
             }
             .apply {
@@ -158,21 +179,80 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun openProjectTree(treeUri: Uri) {
+        runCatching {
+            contentResolver.takePersistableUriPermission(treeUri, IntentFlags.readOnly)
+        }
+
+        saveTreeUri(treeUri)
+        loadExplorerFromUri(treeUri)
+    }
+
+    private fun promptCreateProjectDirectory() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.dialog_new_project_hint)
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_new_project_title)
+            .setView(input)
+            .setPositiveButton(R.string.dialog_new_project_create) { _, _ ->
+                val name = input.text?.toString()?.trim().orEmpty()
+                if (name.isBlank()) {
+                    statusBar.text = getString(R.string.status_project_create_failed)
+                    return@setPositiveButton
+                }
+
+                pendingProjectName = name
+                pickerMode = PickerMode.CREATE_PROJECT
+                treePickerLauncher.launch(null)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun createAndOpenProjectDirectory(parentTreeUri: Uri) {
+        runCatching {
+            contentResolver.takePersistableUriPermission(parentTreeUri, IntentFlags.readOnly)
+        }
+
+        val parent = DocumentFile.fromTreeUri(this, parentTreeUri)
+        val existing = parent?.findFile(pendingProjectName)
+        val projectDir = existing ?: parent?.createDirectory(pendingProjectName)
+
+        if (projectDir == null || !projectDir.canRead()) {
+            statusBar.text = getString(R.string.status_project_create_failed)
+            return
+        }
+
+        saveTreeUri(projectDir.uri)
+        statusBar.text = getString(R.string.status_project_created, pendingProjectName)
+        loadExplorerFromUri(projectDir.uri)
+    }
+
     private fun loadExplorerFromUri(treeUri: Uri) {
         runCatching {
             val root = DocumentFile.fromTreeUri(this, treeUri)
-            if (root == null || !root.canRead()) {
+                ?: DocumentFile.fromSingleUri(this, treeUri)
+
+            if (root == null || !root.canRead() || !root.isDirectory) {
                 statusBar.text = getString(R.string.status_cannot_read_storage)
                 return
             }
 
             explorerFiles.clear()
-            explorerFiles.addAll(collectReadableTextFiles(root, maxDepth = 4))
+            explorerFiles.addAll(collectReadableFiles(root, maxDepth = 8))
 
             val labels = explorerFiles.map { it.label }
             fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
 
+            openTabs.clear()
+            tabContainer.removeAllViews()
+            activeFile = null
+
             if (explorerFiles.isEmpty()) {
+                codeEditor.setText("")
                 statusBar.text = getString(R.string.status_no_supported_files)
                 return
             }
@@ -180,14 +260,26 @@ class MainActivity : AppCompatActivity() {
             statusBar.text = getString(R.string.status_files_loaded, explorerFiles.size)
         }.onFailure {
             clearSavedTreeUri()
-            explorerFiles.clear()
-            fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
+            closeCurrentProject(clearSaved = false)
             statusBar.text = getString(R.string.status_storage_permission_revoked)
             showPermissionDialog(force = true)
         }
     }
 
-    private fun collectReadableTextFiles(
+    private fun closeCurrentProject(clearSaved: Boolean = true) {
+        if (clearSaved) clearSavedTreeUri()
+        explorerFiles.clear()
+        openTabs.clear()
+        activeFile = null
+        tabContainer.removeAllViews()
+        fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
+        codeEditor.setText(getString(R.string.starter_code))
+        updateLineNumbers(codeEditor.text)
+        updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
+        statusBar.text = getString(R.string.status_project_closed)
+    }
+
+    private fun collectReadableFiles(
         directory: DocumentFile,
         maxDepth: Int,
         currentDepth: Int = 0,
@@ -201,26 +293,37 @@ class MainActivity : AppCompatActivity() {
             val path = if (parentPath.isBlank()) name else "$parentPath/$name"
 
             if (file.isDirectory) {
-                output += collectReadableTextFiles(file, maxDepth, currentDepth + 1, path)
-            } else if (isSupportedTextFile(name)) {
+                output += collectReadableFiles(file, maxDepth, currentDepth + 1, path)
+            } else if (isLikelyTextFile(file, name)) {
                 output += ExplorerFile(path, file.uri)
             }
         }
         return output.sortedBy { it.label }
     }
 
-    private fun isSupportedTextFile(fileName: String): Boolean {
+    private fun isLikelyTextFile(file: DocumentFile, fileName: String): Boolean {
+        val mime = file.type.orEmpty().lowercase()
+        if (mime.startsWith("text/")) return true
+        if (mime in setOf(
+                "application/json",
+                "application/xml",
+                "application/javascript",
+                "application/x-javascript",
+                "application/x-sh",
+                "application/x-httpd-php"
+            )
+        ) {
+            return true
+        }
+
         val lower = fileName.lowercase()
-        return lower.endsWith(".kt") ||
-            lower.endsWith(".kts") ||
-            lower.endsWith(".java") ||
-            lower.endsWith(".xml") ||
-            lower.endsWith(".txt") ||
-            lower.endsWith(".md") ||
-            lower.endsWith(".json") ||
-            lower.endsWith(".yaml") ||
-            lower.endsWith(".yml") ||
-            lower.endsWith(".gradle")
+        val binaryExtensions = setOf(
+            ".apk", ".aab", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp3", ".mp4",
+            ".avi", ".mkv", ".so", ".dll", ".exe", ".class", ".dex", ".zip", ".rar", ".7z", ".pdf"
+        )
+        if (binaryExtensions.any { lower.endsWith(it) }) return false
+
+        return true
     }
 
     private fun openFileInTab(file: ExplorerFile) {

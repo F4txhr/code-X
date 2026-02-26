@@ -12,7 +12,7 @@
 
     <string name="status_permission_required">Izin akses folder belum diberikan.</string>
     <string name="status_cannot_read_storage">Folder tidak bisa dibaca.</string>
-    <string name="status_no_supported_files">Tidak ada file teks yang didukung.</string>
+    <string name="status_no_supported_files">Tidak ada file yang bisa ditampilkan.</string>
     <string name="status_files_loaded">%1$d file berhasil dimuat dari storage.</string>
     <string name="status_open_file">Open: %1$s</string>
     <string name="status_failed_open_file">Gagal membuka file.</string>
@@ -21,4 +21,11 @@
     <string name="status_save_preview">Simulasi save untuk %1$s berhasil</string>
     <string name="status_cursor">UTF-8  •  Kotlin  •  Ln %1$d, Col %2$d</string>
     <string name="status_storage_permission_revoked">Akses folder tidak valid. Silakan pilih folder lagi.</string>
+    <string name="status_project_closed">Project ditutup.</string>
+    <string name="status_project_created">Project baru dibuat: %1$s</string>
+    <string name="status_project_create_failed">Gagal membuat project baru.</string>
+
+    <string name="dialog_new_project_title">Buat project baru</string>
+    <string name="dialog_new_project_hint">Nama folder project</string>
+    <string name="dialog_new_project_create">Lanjut pilih parent folder</string>
 </resources>

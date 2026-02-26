@@ -5,7 +5,8 @@ Project ini adalah aplikasi Android native sederhana yang berfungsi sebagai code
 ## Fitur saat ini (fase bertahap)
 
 - UI ala editor (toolbar, tab bar, explorer drawer, status bar)
-- Explorer membaca file teks dari **internal storage** (folder yang dipilih user)
+- Explorer membaca file dari **internal storage** (folder yang dipilih user)
+- Bisa **Open Project Directory**, **Close Project**, dan **Create New Project Directory** dari menu toolbar
 - Tab terbuka saat file dipilih dari explorer
 - Line number + status cursor (Ln/Col)
 
@@ -67,3 +68,16 @@ Workflow `.github/workflows/android-build.yml`:
 - setup Android SDK + build-tools
 - jalankan `gradle --no-daemon assembleDebug`
 - upload artifact APK debug
+
+
+## Manajemen project directory
+
+Di menu toolbar (kanan atas), tersedia:
+
+- **Open Project Directory**: ganti project aktif ke folder lain
+- **Close Project**: tutup project aktif dan reset explorer/tab
+- **Create New Project Directory**: buat folder project baru di parent folder yang dipilih, lalu langsung dibuka
+
+## Deteksi jenis file
+
+Explorer sekarang tidak cuma ekstensi tertentu; app akan menampilkan hampir semua file yang terdeteksi sebagai teks (berdasarkan MIME/ekstensi), dan otomatis menghindari file biner umum seperti gambar, video, archive, APK, dll.
