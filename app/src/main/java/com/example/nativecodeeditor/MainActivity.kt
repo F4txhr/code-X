@@ -24,7 +24,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fileList: ListView
     private lateinit var tabContainer: LinearLayout
 
-    private val openFiles = listOf("MainActivity.kt", "activity_main.xml", "strings.xml")
+    private val projectFiles = listOf("Welcome.kt", "MainActivity.kt", "activity_main.xml", "strings.xml")
+    private val openTabs = mutableListOf("Welcome.kt")
+
+    private val fileContents = mapOf(
+        "Welcome.kt" to "fun main() {\n    println(\"Welcome to Native Code Editor\")\n}\n",
+        "MainActivity.kt" to "// Preview MainActivity.kt\n// File ini akan diisi dari filesystem di fase berikutnya.\n",
+        "activity_main.xml" to "<!-- Preview activity_main.xml -->\n<ConstraintLayout>\n    <!-- Layout preview -->\n</ConstraintLayout>\n",
+        "strings.xml" to "<resources>\n    <string name=\"app_name\">Native Code Editor</string>\n</resources>\n"
+    )
+
+    private var activeFileName: String = "Welcome.kt"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,8 +49,9 @@ class MainActivity : AppCompatActivity() {
 
         setupToolbar()
         setupExplorer()
-        setupTabs()
         setupEditor(savedInstanceState)
+        renderTabs()
+        loadFile(activeFileName)
     }
 
     private fun setupToolbar() {
@@ -59,7 +70,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 R.id.action_save -> {
-                    statusBar.text = "Simulasi save berhasil"
+                    statusBar.text = "Simulasi save untuk $activeFileName berhasil"
                     true
                 }
 
@@ -72,39 +83,14 @@ class MainActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(
             this,
             android.R.layout.simple_list_item_1,
-            openFiles
+            projectFiles
         )
         fileList.adapter = adapter
         fileList.setOnItemClickListener { _, _, position, _ ->
-            val selected = openFiles[position]
-            statusBar.text = "Open: $selected"
+            val selected = projectFiles[position]
+            openFileInTab(selected)
             drawerLayout.closeDrawer(GravityCompat.START)
         }
-    }
-
-    private fun setupTabs() {
-        openFiles.forEachIndexed { index, fileName ->
-            val chip = Chip(this).apply {
-                text = fileName
-                isCheckable = true
-                isChecked = index == 0
-                setOnClickListener {
-                    statusBar.text = "Tab aktif: $fileName"
-                    uncheckOtherTabs(this)
-                }
-            }
-            tabContainer.addView(chip)
-        }
-    }
-
-    private fun uncheckOtherTabs(activeChip: Chip) {
-        for (i in 0 until tabContainer.childCount) {
-            val child = tabContainer.getChildAt(i)
-            if (child is Chip && child != activeChip) {
-                child.isChecked = false
-            }
-        }
-        activeChip.isChecked = true
     }
 
     private fun setupEditor(savedInstanceState: Bundle?) {
@@ -130,6 +116,39 @@ class MainActivity : AppCompatActivity() {
         codeEditor.setOnSelectionChangedListenerCompat {
             updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
         }
+    }
+
+    private fun openFileInTab(fileName: String) {
+        if (!openTabs.contains(fileName)) {
+            openTabs.add(fileName)
+        }
+        activeFileName = fileName
+        renderTabs()
+        loadFile(fileName)
+    }
+
+    private fun renderTabs() {
+        tabContainer.removeAllViews()
+        openTabs.forEach { fileName ->
+            val chip = Chip(this).apply {
+                text = fileName
+                isCheckable = true
+                isChecked = fileName == activeFileName
+                setOnClickListener {
+                    activeFileName = fileName
+                    renderTabs()
+                    loadFile(fileName)
+                }
+            }
+            tabContainer.addView(chip)
+        }
+    }
+
+    private fun loadFile(fileName: String) {
+        val content = fileContents[fileName] ?: "// File belum tersedia"
+        codeEditor.setText(content)
+        codeEditor.setSelection(codeEditor.text.length)
+        statusBar.text = "Open: $fileName"
     }
 
     private fun updateLineNumbers(text: CharSequence?) {
