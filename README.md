@@ -25,6 +25,30 @@ gradle --no-daemon assembleDebug
 
 > Catatan: repo ini saat ini belum menyertakan Gradle Wrapper (`./gradlew`), jadi build CLI memakai Gradle yang sudah terpasang.
 
+## Pakai GitHub Codespaces (bisa)
+
+Bisa. Repo ini sekarang sudah disiapkan `.devcontainer` agar Codespaces:
+
+- otomatis pakai **Java 17**
+- install Android SDK command-line tools
+- install package SDK yang dibutuhkan (`platform-tools`, `platforms;android-34`, `build-tools;34.0.0`)
+
+Langkah:
+
+1. Buka repo di Codespaces.
+2. Tunggu `postCreate` selesai.
+3. Jalankan build:
+
+```bash
+gradle --no-daemon assembleDebug
+```
+
+APK debug akan ada di:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
 ## CI/CD GitHub Actions
 
 Workflow ada di `.github/workflows/android-build.yml` untuk:
