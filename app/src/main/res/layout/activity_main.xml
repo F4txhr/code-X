@@ -1,66 +1,139 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="12dp">
+    android:fitsSystemWindows="true">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:title="@string/app_name"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#1E1E1E"
+        android:padding="8dp">
 
-    <HorizontalScrollView
-        android:id="@+id/editorHorizontalContainer"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:fillViewport="true"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/toolbar">
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:background="#252526"
+            android:minHeight="48dp"
+            android:title="@string/app_name"
+            android:titleTextColor="#D4D4D4"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:menu="@menu/editor_toolbar_menu"
+            app:navigationIcon="@android:drawable/ic_menu_sort_by_size" />
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:orientation="horizontal">
+        <HorizontalScrollView
+            android:id="@+id/tabBarScroll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:background="#2D2D2D"
+            android:scrollbars="none"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/toolbar">
 
-            <TextView
-                android:id="@+id/lineNumbers"
+            <LinearLayout
+                android:id="@+id/tabContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingHorizontal="4dp"
+                android:paddingVertical="6dp" />
+        </HorizontalScrollView>
+
+        <HorizontalScrollView
+            android:id="@+id/editorHorizontalContainer"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="#1E1E1E"
+            android:fillViewport="true"
+            app:layout_constraintBottom_toTopOf="@id/statusBar"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tabBarScroll">
+
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:background="#1E1E1E"
-                android:gravity="top|end"
-                android:padding="8dp"
-                android:textColor="#7A7A7A"
-                android:textSize="14sp" />
+                android:orientation="horizontal">
 
-            <ScrollView
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:fillViewport="true">
-
-                <EditText
-                    android:id="@+id/codeEditor"
+                <TextView
+                    android:id="@+id/lineNumbers"
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_height="match_parent"
                     android:background="#1E1E1E"
-                    android:fontFamily="monospace"
-                    android:gravity="top|start"
-                    android:imeOptions="flagNoExtractUi"
-                    android:inputType="textMultiLine|textNoSuggestions"
-                    android:minWidth="700dp"
-                    android:minHeight="1200dp"
-                    android:padding="12dp"
-                    android:textColor="#E6E6E6"
-                    android:textColorHint="#777777"
-                    android:textSize="14sp" />
-            </ScrollView>
-        </LinearLayout>
-    </HorizontalScrollView>
+                    android:gravity="top|end"
+                    android:padding="8dp"
+                    android:textColor="#858585"
+                    android:textSize="13sp" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+                <ScrollView
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:fillViewport="true">
+
+                    <EditText
+                        android:id="@+id/codeEditor"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="#1E1E1E"
+                        android:fontFamily="monospace"
+                        android:gravity="top|start"
+                        android:imeOptions="flagNoExtractUi"
+                        android:inputType="textMultiLine|textNoSuggestions"
+                        android:minHeight="1200dp"
+                        android:minWidth="750dp"
+                        android:padding="12dp"
+                        android:textColor="#D4D4D4"
+                        android:textColorHint="#777777"
+                        android:textSize="14sp" />
+                </ScrollView>
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <TextView
+            android:id="@+id/statusBar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:background="#007ACC"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp"
+            android:text="@string/status_ready"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <LinearLayout
+        android:id="@+id/fileExplorerPanel"
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="#252526"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/explorer_title"
+            android:textColor="#CCCCCC"
+            android:textStyle="bold" />
+
+        <ListView
+            android:id="@+id/fileList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="#3A3A3A"
+            android:dividerHeight="1dp" />
+    </LinearLayout>
+
+</androidx.drawerlayout.widget.DrawerLayout>
