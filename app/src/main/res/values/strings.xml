@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Native Code Editor</string>
+    <string name="starter_code">fun main() {\n    println(&quot;Hello from Android code editor!&quot;)\n}\n</string>
+</resources>
