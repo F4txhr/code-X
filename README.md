@@ -19,11 +19,14 @@ Project ini adalah aplikasi Android native sederhana yang berfungsi sebagai code
 gradle assembleDebug
 ```
 
+> Catatan: repo ini saat ini belum menyertakan Gradle Wrapper (`./gradlew`), jadi build CLI memakai Gradle yang sudah terpasang.
+
 ## CI/CD GitHub Actions
 
 Workflow ada di `.github/workflows/android-build.yml` untuk:
 
 - setup JDK 17
+- install Gradle 8.7 secara eksplisit
 - setup Android SDK + build-tools
-- menjalankan `gradle assembleDebug`
-- upload artifact APK debug
+- menjalankan `gradle --no-daemon assembleDebug`
+- upload artifact APK debug (`app-debug-apk`)
