@@ -15,8 +15,12 @@ Project ini adalah aplikasi Android native sederhana yang berfungsi sebagai code
 
 ## Build via command line
 
+Gunakan JDK 17 saat build (AGP tidak kompatibel dengan Java 25):
+
 ```bash
-gradle assembleDebug
+JAVA_HOME=/root/.local/share/mise/installs/java/17.0.2 \
+PATH=/root/.local/share/mise/installs/java/17.0.2/bin:$PATH \
+gradle --no-daemon assembleDebug
 ```
 
 > Catatan: repo ini saat ini belum menyertakan Gradle Wrapper (`./gradlew`), jadi build CLI memakai Gradle yang sudah terpasang.
