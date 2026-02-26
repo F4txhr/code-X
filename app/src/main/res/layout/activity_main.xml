@@ -45,51 +45,43 @@
                 android:paddingVertical="6dp" />
         </HorizontalScrollView>
 
-        <HorizontalScrollView
-            android:id="@+id/editorHorizontalContainer"
+        <LinearLayout
+            android:id="@+id/editorContainer"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:background="#1E1E1E"
-            android:fillViewport="true"
+            android:orientation="horizontal"
             app:layout_constraintBottom_toTopOf="@id/statusBar"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/tabBarScroll">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/lineNumbers"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:orientation="horizontal">
+                android:background="#1E1E1E"
+                android:gravity="top|end"
+                android:padding="8dp"
+                android:textColor="#858585"
+                android:textSize="13sp" />
 
-                <TextView
-                    android:id="@+id/lineNumbers"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:background="#1E1E1E"
-                    android:gravity="top|end"
-                    android:padding="8dp"
-                    android:textColor="#858585"
-                    android:textSize="13sp" />
-
-                <EditText
-                    android:id="@+id/codeEditor"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:background="#1E1E1E"
-                    android:fontFamily="monospace"
-                    android:gravity="top|start"
-                    android:hint="@string/editor_hint"
-                    android:imeOptions="flagNoExtractUi"
-                    android:inputType="textMultiLine|textNoSuggestions"
-                    android:minHeight="1200dp"
-                    android:minWidth="750dp"
-                    android:padding="12dp"
-                    android:scrollbars="vertical|horizontal"
-                    android:textColor="#D4D4D4"
-                    android:textColorHint="#777777"
-                    android:textSize="14sp" />
-            </LinearLayout>
-        </HorizontalScrollView>
+            <EditText
+                android:id="@+id/codeEditor"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="#1E1E1E"
+                android:fontFamily="monospace"
+                android:gravity="top|start"
+                android:hint="@string/editor_hint"
+                android:imeOptions="flagNoExtractUi"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:padding="12dp"
+                android:scrollbars="vertical"
+                android:textColor="#D4D4D4"
+                android:textColorHint="#777777"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/statusBar"

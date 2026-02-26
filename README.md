@@ -73,7 +73,7 @@ Workflow `.github/workflows/android-build.yml`:
 
 ## Manajemen project directory
 
-Di menu toolbar (kanan atas), tersedia:
+Di header panel **EXPLORER** (ikon minimalis), tersedia:
 
 - **Open Project Directory**: ganti project aktif ke folder lain
 - **Close Project**: tutup project aktif dan reset explorer/tab

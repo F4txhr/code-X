@@ -25,9 +25,10 @@ class MainActivity : AppCompatActivity() {
 
     private data class ExplorerEntry(
         val displayName: String,
+        val name: String,
         val uri: Uri,
         val isDirectory: Boolean,
-        val isBack: Boolean = false
+        val depth: Int
     )
 
     private data class OpenTab(
@@ -49,8 +50,9 @@ class MainActivity : AppCompatActivity() {
 
     private val explorerEntries = mutableListOf<ExplorerEntry>()
     private val openTabs = mutableListOf<OpenTab>()
-    private val directoryStack = mutableListOf<Uri>()
+    private val expandedDirectories = mutableSetOf<Uri>()
 
+    private var rootUri: Uri? = null
     private var activeTab: OpenTab? = null
     private var pickerMode: PickerMode = PickerMode.OPEN_PROJECT
     private var pendingProjectName: String = ""
@@ -155,10 +157,10 @@ class MainActivity : AppCompatActivity() {
     private fun setupExplorerList() {
         fileList.setOnItemClickListener { _, _, position, _ ->
             val selected = explorerEntries[position]
-            when {
-                selected.isBack -> navigateBackDirectory()
-                selected.isDirectory -> navigateIntoDirectory(selected.uri)
-                else -> openFileInTab(selected)
+            if (selected.isDirectory) {
+                toggleDirectory(selected.uri)
+            } else {
+                openFileInTab(selected)
             }
         }
     }
@@ -217,7 +219,11 @@ class MainActivity : AppCompatActivity() {
 
         saveTreeUri(treeUri)
         resetForNewProject()
-        navigateIntoDirectory(treeUri, resetStack = true)
+
+        rootUri = treeUri
+        expandedDirectories.add(treeUri)
+        renderExplorerTree()
+        drawerLayout.closeDrawer(GravityCompat.START)
     }
 
     private fun promptCreateProjectDirectory() {
@@ -261,27 +267,43 @@ class MainActivity : AppCompatActivity() {
         saveTreeUri(projectDir.uri)
         statusBar.text = getString(R.string.status_project_created, pendingProjectName)
         resetForNewProject()
-        navigateIntoDirectory(projectDir.uri, resetStack = true)
+
+        rootUri = projectDir.uri
+        expandedDirectories.add(projectDir.uri)
+        renderExplorerTree()
     }
 
-    private fun navigateIntoDirectory(uri: Uri, resetStack: Boolean = false) {
+    private fun toggleDirectory(uri: Uri) {
+        if (expandedDirectories.contains(uri)) {
+            expandedDirectories.remove(uri)
+        } else {
+            expandedDirectories.add(uri)
+        }
+        renderExplorerTree()
+    }
+
+    private fun renderExplorerTree() {
         runCatching {
-            val directory = resolveDirectory(uri)
-            if (directory == null || !directory.canRead() || !directory.isDirectory) {
+            val root = rootUri?.let { resolveDirectory(it) }
+            if (root == null || !root.canRead() || !root.isDirectory) {
                 statusBar.text = getString(R.string.status_cannot_read_storage)
                 return
             }
 
-            if (resetStack) {
-                directoryStack.clear()
-            }
+            explorerEntries.clear()
+            explorerEntries.addAll(buildVisibleTreeEntries(root, depth = 0))
 
-            if (directoryStack.lastOrNull() != directory.uri) {
-                directoryStack.add(directory.uri)
-            }
+            fileList.adapter = ArrayAdapter(
+                this,
+                android.R.layout.simple_list_item_1,
+                explorerEntries.map { it.displayName }
+            )
 
-            renderDirectory(directory)
-            drawerLayout.closeDrawer(GravityCompat.START)
+            statusBar.text = if (explorerEntries.isEmpty()) {
+                getString(R.string.status_no_supported_files)
+            } else {
+                getString(R.string.status_files_loaded, explorerEntries.size)
+            }
         }.onFailure {
             clearSavedTreeUri()
             closeCurrentProject(clearSaved = false)
@@ -290,26 +312,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun navigateBackDirectory() {
-        if (directoryStack.size <= 1) return
-        directoryStack.removeLast()
-        val target = resolveDirectory(directoryStack.last()) ?: return
-        renderDirectory(target)
-    }
-
-    private fun renderDirectory(directory: DocumentFile) {
-        explorerEntries.clear()
-
-        if (directoryStack.size > 1) {
-            explorerEntries.add(
-                ExplorerEntry(
-                    displayName = "..",
-                    uri = directoryStack[directoryStack.lastIndex - 1],
-                    isDirectory = true,
-                    isBack = true
-                )
-            )
-        }
+    private fun buildVisibleTreeEntries(
+        directory: DocumentFile,
+        depth: Int
+    ): List<ExplorerEntry> {
+        val entries = mutableListOf<ExplorerEntry>()
 
         val children = directory.listFiles().toList().sortedWith(
             compareBy<DocumentFile> { !it.isDirectory }
@@ -318,36 +325,38 @@ class MainActivity : AppCompatActivity() {
 
         children.forEach { child ->
             val name = child.name ?: return@forEach
+            val indent = "  ".repeat(depth)
+
             if (child.isDirectory) {
-                explorerEntries.add(
+                val expanded = expandedDirectories.contains(child.uri)
+                val marker = if (expanded) "▾" else "▸"
+                entries.add(
                     ExplorerEntry(
-                        displayName = "📁 $name",
+                        displayName = "$indent$marker $name",
+                        name = name,
                         uri = child.uri,
-                        isDirectory = true
+                        isDirectory = true,
+                        depth = depth
                     )
                 )
+
+                if (expanded) {
+                    entries.addAll(buildVisibleTreeEntries(child, depth + 1))
+                }
             } else if (isLikelyTextFile(child, name)) {
-                explorerEntries.add(
+                entries.add(
                     ExplorerEntry(
-                        displayName = name,
+                        displayName = "$indent$name",
+                        name = name,
                         uri = child.uri,
-                        isDirectory = false
+                        isDirectory = false,
+                        depth = depth
                     )
                 )
             }
         }
 
-        fileList.adapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_list_item_1,
-            explorerEntries.map { it.displayName }
-        )
-
-        statusBar.text = if (explorerEntries.isEmpty()) {
-            getString(R.string.status_no_supported_files)
-        } else {
-            getString(R.string.status_files_loaded, explorerEntries.count { !it.isBack })
-        }
+        return entries
     }
 
     private fun isLikelyTextFile(file: DocumentFile, fileName: String): Boolean {
@@ -372,8 +381,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openFileInTab(entry: ExplorerEntry) {
-        val name = entry.displayName
-        val tab = openTabs.find { it.uri == entry.uri } ?: OpenTab(name = name, uri = entry.uri).also {
+        val tab = openTabs.find { it.uri == entry.uri } ?: OpenTab(name = entry.name, uri = entry.uri).also {
             openTabs.add(it)
         }
 
@@ -415,7 +423,8 @@ class MainActivity : AppCompatActivity() {
         explorerEntries.clear()
         openTabs.clear()
         activeTab = null
-        directoryStack.clear()
+        rootUri = null
+        expandedDirectories.clear()
         tabContainer.removeAllViews()
         fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
         codeEditor.setText("")
