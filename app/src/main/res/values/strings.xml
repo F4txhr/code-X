@@ -20,4 +20,5 @@
     <string name="status_no_file_open">Tidak ada file aktif</string>
     <string name="status_save_preview">Simulasi save untuk %1$s berhasil</string>
     <string name="status_cursor">UTF-8  •  Kotlin  •  Ln %1$d, Col %2$d</string>
+    <string name="status_storage_permission_revoked">Akses folder tidak valid. Silakan pilih folder lagi.</string>
 </resources>

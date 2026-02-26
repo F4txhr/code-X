@@ -45,10 +45,12 @@ class MainActivity : AppCompatActivity() {
             return@registerForActivityResult
         }
 
-        contentResolver.takePersistableUriPermission(
-            uri,
-            IntentFlags.readOnly
-        )
+        runCatching {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                IntentFlags.readOnly
+            )
+        }
 
         saveTreeUri(uri)
         loadExplorerFromUri(uri)
@@ -135,6 +137,10 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        showPermissionDialog(force = false)
+    }
+
+    private fun showPermissionDialog(force: Boolean) {
         AlertDialog.Builder(this)
             .setTitle(R.string.permission_dialog_title)
             .setMessage(R.string.permission_dialog_message)
@@ -142,31 +148,43 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.permission_dialog_grant) { _, _ ->
                 treePickerLauncher.launch(null)
             }
-            .setNegativeButton(R.string.permission_dialog_later) { _, _ ->
-                statusBar.text = getString(R.string.status_permission_required)
+            .apply {
+                if (!force) {
+                    setNegativeButton(R.string.permission_dialog_later) { _, _ ->
+                        statusBar.text = getString(R.string.status_permission_required)
+                    }
+                }
             }
             .show()
     }
 
     private fun loadExplorerFromUri(treeUri: Uri) {
-        val root = DocumentFile.fromTreeUri(this, treeUri)
-        if (root == null || !root.canRead()) {
-            statusBar.text = getString(R.string.status_cannot_read_storage)
-            return
+        runCatching {
+            val root = DocumentFile.fromTreeUri(this, treeUri)
+            if (root == null || !root.canRead()) {
+                statusBar.text = getString(R.string.status_cannot_read_storage)
+                return
+            }
+
+            explorerFiles.clear()
+            explorerFiles.addAll(collectReadableTextFiles(root, maxDepth = 4))
+
+            val labels = explorerFiles.map { it.label }
+            fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
+
+            if (explorerFiles.isEmpty()) {
+                statusBar.text = getString(R.string.status_no_supported_files)
+                return
+            }
+
+            statusBar.text = getString(R.string.status_files_loaded, explorerFiles.size)
+        }.onFailure {
+            clearSavedTreeUri()
+            explorerFiles.clear()
+            fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
+            statusBar.text = getString(R.string.status_storage_permission_revoked)
+            showPermissionDialog(force = true)
         }
-
-        explorerFiles.clear()
-        explorerFiles.addAll(collectReadableTextFiles(root, maxDepth = 4))
-
-        val labels = explorerFiles.map { it.label }
-        fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
-
-        if (explorerFiles.isEmpty()) {
-            statusBar.text = getString(R.string.status_no_supported_files)
-            return
-        }
-
-        statusBar.text = getString(R.string.status_files_loaded, explorerFiles.size)
     }
 
     private fun collectReadableTextFiles(
@@ -282,7 +300,14 @@ class MainActivity : AppCompatActivity() {
         val value = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
             .getString(KEY_TREE_URI, null)
             ?: return null
-        return Uri.parse(value)
+        return runCatching { Uri.parse(value) }.getOrNull()
+    }
+
+    private fun clearSavedTreeUri() {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .edit()
+            .remove(KEY_TREE_URI)
+            .apply()
     }
 
     private object IntentFlags {
