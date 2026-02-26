@@ -1,6 +1,7 @@
 package com.example.nativecodeeditor
 
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -9,13 +10,21 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
+import androidx.documentfile.provider.DocumentFile
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.chip.Chip
 
 class MainActivity : AppCompatActivity() {
+
+    private data class ExplorerFile(
+        val label: String,
+        val uri: Uri
+    )
 
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var codeEditor: EditText
@@ -24,17 +33,26 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fileList: ListView
     private lateinit var tabContainer: LinearLayout
 
-    private val projectFiles = listOf("Welcome.kt", "MainActivity.kt", "activity_main.xml", "strings.xml")
-    private val openTabs = mutableListOf("Welcome.kt")
+    private val openTabs = mutableListOf<ExplorerFile>()
+    private val explorerFiles = mutableListOf<ExplorerFile>()
+    private var activeFile: ExplorerFile? = null
 
-    private val fileContents = mapOf(
-        "Welcome.kt" to "fun main() {\n    println(\"Welcome to Native Code Editor\")\n}\n",
-        "MainActivity.kt" to "// Preview MainActivity.kt\n// File ini akan diisi dari filesystem di fase berikutnya.\n",
-        "activity_main.xml" to "<!-- Preview activity_main.xml -->\n<ConstraintLayout>\n    <!-- Layout preview -->\n</ConstraintLayout>\n",
-        "strings.xml" to "<resources>\n    <string name=\"app_name\">Native Code Editor</string>\n</resources>\n"
-    )
+    private val treePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) {
+            statusBar.text = getString(R.string.status_permission_required)
+            return@registerForActivityResult
+        }
 
-    private var activeFileName: String = "Welcome.kt"
+        contentResolver.takePersistableUriPermission(
+            uri,
+            IntentFlags.readOnly
+        )
+
+        saveTreeUri(uri)
+        loadExplorerFromUri(uri)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,10 +66,10 @@ class MainActivity : AppCompatActivity() {
         tabContainer = findViewById(R.id.tabContainer)
 
         setupToolbar()
-        setupExplorer()
-        setupEditor(savedInstanceState)
-        renderTabs()
-        loadFile(activeFileName)
+        setupEditor()
+        setupExplorerList()
+
+        ensureStorageAccessThenLoadFiles()
     }
 
     private fun setupToolbar() {
@@ -65,12 +83,13 @@ class MainActivity : AppCompatActivity() {
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_search -> {
-                    statusBar.text = "Search belum aktif (fase berikutnya)"
+                    statusBar.text = getString(R.string.status_search_pending)
                     true
                 }
 
                 R.id.action_save -> {
-                    statusBar.text = "Simulasi save untuk $activeFileName berhasil"
+                    val current = activeFile?.label ?: getString(R.string.status_no_file_open)
+                    statusBar.text = getString(R.string.status_save_preview, current)
                     true
                 }
 
@@ -79,28 +98,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupExplorer() {
-        val adapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_list_item_1,
-            projectFiles
-        )
-        fileList.adapter = adapter
-        fileList.setOnItemClickListener { _, _, position, _ ->
-            val selected = projectFiles[position]
-            openFileInTab(selected)
-            drawerLayout.closeDrawer(GravityCompat.START)
-        }
-    }
-
-    private fun setupEditor(savedInstanceState: Bundle?) {
+    private fun setupEditor() {
         codeEditor.typeface = Typeface.MONOSPACE
         lineNumbers.typeface = Typeface.MONOSPACE
 
-        if (savedInstanceState == null || codeEditor.text.isNullOrBlank()) {
-            codeEditor.setText(getString(R.string.starter_code))
-        }
-
+        codeEditor.setText(getString(R.string.starter_code))
         updateLineNumbers(codeEditor.text)
         updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
 
@@ -118,37 +120,127 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun openFileInTab(fileName: String) {
-        if (!openTabs.contains(fileName)) {
-            openTabs.add(fileName)
+    private fun setupExplorerList() {
+        fileList.setOnItemClickListener { _, _, position, _ ->
+            val selected = explorerFiles[position]
+            openFileInTab(selected)
+            drawerLayout.closeDrawer(GravityCompat.START)
         }
-        activeFileName = fileName
+    }
+
+    private fun ensureStorageAccessThenLoadFiles() {
+        val saved = getSavedTreeUri()
+        if (saved != null) {
+            loadExplorerFromUri(saved)
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.permission_dialog_title)
+            .setMessage(R.string.permission_dialog_message)
+            .setCancelable(false)
+            .setPositiveButton(R.string.permission_dialog_grant) { _, _ ->
+                treePickerLauncher.launch(null)
+            }
+            .setNegativeButton(R.string.permission_dialog_later) { _, _ ->
+                statusBar.text = getString(R.string.status_permission_required)
+            }
+            .show()
+    }
+
+    private fun loadExplorerFromUri(treeUri: Uri) {
+        val root = DocumentFile.fromTreeUri(this, treeUri)
+        if (root == null || !root.canRead()) {
+            statusBar.text = getString(R.string.status_cannot_read_storage)
+            return
+        }
+
+        explorerFiles.clear()
+        explorerFiles.addAll(collectReadableTextFiles(root, maxDepth = 4))
+
+        val labels = explorerFiles.map { it.label }
+        fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
+
+        if (explorerFiles.isEmpty()) {
+            statusBar.text = getString(R.string.status_no_supported_files)
+            return
+        }
+
+        statusBar.text = getString(R.string.status_files_loaded, explorerFiles.size)
+    }
+
+    private fun collectReadableTextFiles(
+        directory: DocumentFile,
+        maxDepth: Int,
+        currentDepth: Int = 0,
+        parentPath: String = ""
+    ): List<ExplorerFile> {
+        if (currentDepth > maxDepth || !directory.isDirectory) return emptyList()
+
+        val output = mutableListOf<ExplorerFile>()
+        directory.listFiles().forEach { file ->
+            val name = file.name ?: return@forEach
+            val path = if (parentPath.isBlank()) name else "$parentPath/$name"
+
+            if (file.isDirectory) {
+                output += collectReadableTextFiles(file, maxDepth, currentDepth + 1, path)
+            } else if (isSupportedTextFile(name)) {
+                output += ExplorerFile(path, file.uri)
+            }
+        }
+        return output.sortedBy { it.label }
+    }
+
+    private fun isSupportedTextFile(fileName: String): Boolean {
+        val lower = fileName.lowercase()
+        return lower.endsWith(".kt") ||
+            lower.endsWith(".kts") ||
+            lower.endsWith(".java") ||
+            lower.endsWith(".xml") ||
+            lower.endsWith(".txt") ||
+            lower.endsWith(".md") ||
+            lower.endsWith(".json") ||
+            lower.endsWith(".yaml") ||
+            lower.endsWith(".yml") ||
+            lower.endsWith(".gradle")
+    }
+
+    private fun openFileInTab(file: ExplorerFile) {
+        if (openTabs.none { it.uri == file.uri }) {
+            openTabs.add(file)
+        }
+        activeFile = file
         renderTabs()
-        loadFile(fileName)
+        loadFileContent(file)
     }
 
     private fun renderTabs() {
         tabContainer.removeAllViews()
-        openTabs.forEach { fileName ->
+        openTabs.forEach { file ->
             val chip = Chip(this).apply {
-                text = fileName
+                text = file.label.substringAfterLast('/')
                 isCheckable = true
-                isChecked = fileName == activeFileName
+                isChecked = activeFile?.uri == file.uri
                 setOnClickListener {
-                    activeFileName = fileName
+                    activeFile = file
                     renderTabs()
-                    loadFile(fileName)
+                    loadFileContent(file)
                 }
             }
             tabContainer.addView(chip)
         }
     }
 
-    private fun loadFile(fileName: String) {
-        val content = fileContents[fileName] ?: "// File belum tersedia"
-        codeEditor.setText(content)
-        codeEditor.setSelection(codeEditor.text.length)
-        statusBar.text = "Open: $fileName"
+    private fun loadFileContent(file: ExplorerFile) {
+        runCatching {
+            contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
+        }.onSuccess { text ->
+            codeEditor.setText(text ?: "")
+            codeEditor.setSelection(codeEditor.text.length)
+            statusBar.text = getString(R.string.status_open_file, file.label)
+        }.onFailure {
+            statusBar.text = getString(R.string.status_failed_open_file)
+        }
     }
 
     private fun updateLineNumbers(text: CharSequence?) {
@@ -176,7 +268,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        statusBar.text = "UTF-8  •  Kotlin  •  Ln $line, Col $col"
+        statusBar.text = getString(R.string.status_cursor, line, col)
+    }
+
+    private fun saveTreeUri(uri: Uri) {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .edit()
+            .putString(KEY_TREE_URI, uri.toString())
+            .apply()
+    }
+
+    private fun getSavedTreeUri(): Uri? {
+        val value = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getString(KEY_TREE_URI, null)
+            ?: return null
+        return Uri.parse(value)
+    }
+
+    private object IntentFlags {
+        const val readOnly =
+            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+    }
+
+    companion object {
+        private const val PREFS_NAME = "editor_prefs"
+        private const val KEY_TREE_URI = "tree_uri"
     }
 }
 

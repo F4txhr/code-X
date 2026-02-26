@@ -1,7 +1,23 @@
 <resources>
     <string name="app_name">Native Code Editor</string>
-    <string name="starter_code">fun main() {\n    println(&quot;Hello from Android code editor!&quot;)\n}\n</string>
+    <string name="starter_code">Pilih folder dulu dari popup izin, lalu buka file dari panel EXPLORER.</string>
     <string name="status_ready">UTF-8  •  Kotlin  •  Ln 1, Col 1</string>
     <string name="explorer_title">EXPLORER</string>
-    <string name="editor_hint">Mulai ketik kode di sini...</string>
+    <string name="editor_hint">Pilih file dari explorer...</string>
+
+    <string name="permission_dialog_title">Akses penyimpanan diperlukan</string>
+    <string name="permission_dialog_message">Aplikasi perlu akses folder agar bisa membaca file dari internal storage. Pilih folder yang ingin dieksplorasi.</string>
+    <string name="permission_dialog_grant">Pilih folder</string>
+    <string name="permission_dialog_later">Nanti</string>
+
+    <string name="status_permission_required">Izin akses folder belum diberikan.</string>
+    <string name="status_cannot_read_storage">Folder tidak bisa dibaca.</string>
+    <string name="status_no_supported_files">Tidak ada file teks yang didukung.</string>
+    <string name="status_files_loaded">%1$d file berhasil dimuat dari storage.</string>
+    <string name="status_open_file">Open: %1$s</string>
+    <string name="status_failed_open_file">Gagal membuka file.</string>
+    <string name="status_search_pending">Search belum aktif (fase berikutnya)</string>
+    <string name="status_no_file_open">Tidak ada file aktif</string>
+    <string name="status_save_preview">Simulasi save untuk %1$s berhasil</string>
+    <string name="status_cursor">UTF-8  •  Kotlin  •  Ln %1$d, Col %2$d</string>
 </resources>

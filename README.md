@@ -1,11 +1,31 @@
 # Native Code Editor (Android)
 
-Project ini adalah aplikasi Android native sederhana yang berfungsi sebagai code editor ringan:
+Project ini adalah aplikasi Android native sederhana yang berfungsi sebagai code editor ringan.
 
-- area input kode berbasis `EditText` monospace
-- line number otomatis
-- starter template kode Kotlin
-- dapat dibuild otomatis via GitHub Actions
+## Fitur saat ini (fase bertahap)
+
+- UI ala editor (toolbar, tab bar, explorer drawer, status bar)
+- Explorer membaca file teks dari **internal storage** (folder yang dipilih user)
+- Tab terbuka saat file dipilih dari explorer
+- Line number + status cursor (Ln/Col)
+
+## Alur izin akses storage (awal aplikasi)
+
+Saat pertama kali buka aplikasi:
+
+1. Muncul popup permintaan akses folder.
+2. Klik **Pilih folder**.
+3. Pilih folder internal storage yang ingin dieksplorasi.
+4. App menyimpan izin baca folder tersebut (persisted URI permission).
+
+Setelah itu, daftar file teks akan muncul di panel **EXPLORER**.
+
+## Format file yang didukung explorer
+
+Contoh ekstensi yang ditampilkan:
+
+- `.kt`, `.kts`, `.java`, `.xml`
+- `.txt`, `.md`, `.json`, `.yaml`, `.yml`, `.gradle`
 
 ## Menjalankan lokal
 
@@ -15,7 +35,7 @@ Project ini adalah aplikasi Android native sederhana yang berfungsi sebagai code
 
 ## Build via command line
 
-Gunakan JDK 17 saat build (AGP tidak kompatibel dengan Java 25):
+Gunakan JDK 17 saat build:
 
 ```bash
 JAVA_HOME=/root/.local/share/mise/installs/java/17.0.2 \
@@ -23,56 +43,27 @@ PATH=/root/.local/share/mise/installs/java/17.0.2/bin:$PATH \
 gradle --no-daemon assembleDebug
 ```
 
-> Catatan: repo ini saat ini belum menyertakan Gradle Wrapper (`./gradlew`), jadi build CLI memakai Gradle yang sudah terpasang.
-
-## Pakai GitHub Codespaces (bisa)
-
-Bisa. Repo ini sudah disiapkan `.devcontainer` agar Codespaces:
-
-- otomatis pakai **Java 17**
-- install Android SDK command-line tools
-- install package SDK yang dibutuhkan (`platform-tools`, `platforms;android-34`, `build-tools;34.0.0`)
-
-### Cara build di Codespaces
+## Pakai GitHub Codespaces
 
 1. Buka repo di Codespaces.
-2. Tunggu proses `postCreate` selesai.
+2. Tunggu `postCreate` selesai.
 3. Jalankan build:
 
 ```bash
 ./scripts/codespace-build.sh
 ```
 
-Script di atas akan:
-- menjalankan `gradle --no-daemon assembleDebug`
-- menyalin hasil build ke folder `artifacts/` dengan nama timestamp
+APK output:
 
-### Cara ambil hasil build (APK) dari Codespaces
-
-Setelah build sukses, ada 2 lokasi APK:
-
-1. Lokasi output default Gradle:
-
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-2. Lokasi salinan artifact (lebih mudah di-download):
-
-```text
-artifacts/native-code-editor-debug-YYYYMMDD-HHMMSS.apk
-```
-
-Lalu download file APK dari panel **Explorer** di VS Code Codespaces:
-- klik kanan file `.apk`
-- pilih **Download...**
+- `app/build/outputs/apk/debug/app-debug.apk`
+- `artifacts/native-code-editor-debug-YYYYMMDD-HHMMSS.apk`
 
 ## CI/CD GitHub Actions
 
-Workflow ada di `.github/workflows/android-build.yml` untuk:
+Workflow `.github/workflows/android-build.yml`:
 
 - setup JDK 17
-- install Gradle 8.7 secara eksplisit
+- install Gradle 8.7
 - setup Android SDK + build-tools
-- menjalankan `gradle --no-daemon assembleDebug`
-- upload artifact APK debug (`app-debug-apk`)
+- jalankan `gradle --no-daemon assembleDebug`
+- upload artifact APK debug
