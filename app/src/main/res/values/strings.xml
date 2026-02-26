@@ -28,4 +28,7 @@
     <string name="dialog_new_project_title">Buat project baru</string>
     <string name="dialog_new_project_hint">Nama folder project</string>
     <string name="dialog_new_project_create">Lanjut pilih parent folder</string>
+    <string name="action_open_project">Open Project</string>
+    <string name="action_close_project">Close Project</string>
+    <string name="action_new_project">New Project</string>
 </resources>

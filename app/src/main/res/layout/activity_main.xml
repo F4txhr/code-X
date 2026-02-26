@@ -124,6 +124,27 @@
             android:textColor="#CCCCCC"
             android:textStyle="bold" />
 
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOpenProject"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="@string/action_open_project" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCloseProject"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="@string/action_close_project" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnNewProject"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:text="@string/action_new_project" />
         <ListView
             android:id="@+id/fileList"
             android:layout_width="match_parent"

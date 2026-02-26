@@ -18,6 +18,7 @@ import androidx.core.view.GravityCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 
 class MainActivity : AppCompatActivity() {
@@ -74,6 +75,7 @@ class MainActivity : AppCompatActivity() {
         setupToolbar()
         setupEditor()
         setupExplorerList()
+        setupExplorerActions()
 
         ensureStorageAccessThenLoadFiles()
     }
@@ -146,6 +148,29 @@ class MainActivity : AppCompatActivity() {
         fileList.setOnItemClickListener { _, _, position, _ ->
             val selected = explorerFiles[position]
             openFileInTab(selected)
+            drawerLayout.closeDrawer(GravityCompat.START)
+        }
+    }
+
+
+    private fun setupExplorerActions() {
+        val openButton: MaterialButton = findViewById(R.id.btnOpenProject)
+        val closeButton: MaterialButton = findViewById(R.id.btnCloseProject)
+        val newButton: MaterialButton = findViewById(R.id.btnNewProject)
+
+        openButton.setOnClickListener {
+            pickerMode = PickerMode.OPEN_PROJECT
+            treePickerLauncher.launch(null)
+            drawerLayout.closeDrawer(GravityCompat.START)
+        }
+
+        closeButton.setOnClickListener {
+            closeCurrentProject()
+            drawerLayout.closeDrawer(GravityCompat.START)
+        }
+
+        newButton.setOnClickListener {
+            promptCreateProjectDirectory()
             drawerLayout.closeDrawer(GravityCompat.START)
         }
     }
