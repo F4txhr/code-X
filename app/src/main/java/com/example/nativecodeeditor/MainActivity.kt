@@ -23,8 +23,15 @@ import com.google.android.material.chip.Chip
 
 class MainActivity : AppCompatActivity() {
 
-    private data class ExplorerFile(
-        val label: String,
+    private data class ExplorerEntry(
+        val displayName: String,
+        val uri: Uri,
+        val isDirectory: Boolean,
+        val isBack: Boolean = false
+    )
+
+    private data class OpenTab(
+        val name: String,
         val uri: Uri
     )
 
@@ -40,10 +47,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fileList: ListView
     private lateinit var tabContainer: LinearLayout
 
-    private val openTabs = mutableListOf<ExplorerFile>()
-    private val explorerFiles = mutableListOf<ExplorerFile>()
-    private var activeFile: ExplorerFile? = null
+    private val explorerEntries = mutableListOf<ExplorerEntry>()
+    private val openTabs = mutableListOf<OpenTab>()
+    private val directoryStack = mutableListOf<Uri>()
 
+    private var activeTab: OpenTab? = null
     private var pickerMode: PickerMode = PickerMode.OPEN_PROJECT
     private var pendingProjectName: String = ""
 
@@ -96,7 +104,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 R.id.action_save -> {
-                    val current = activeFile?.label ?: getString(R.string.status_no_file_open)
+                    val current = activeTab?.name ?: getString(R.string.status_no_file_open)
                     statusBar.text = getString(R.string.status_save_preview, current)
                     true
                 }
@@ -146,12 +154,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupExplorerList() {
         fileList.setOnItemClickListener { _, _, position, _ ->
-            val selected = explorerFiles[position]
-            openFileInTab(selected)
-            drawerLayout.closeDrawer(GravityCompat.START)
+            val selected = explorerEntries[position]
+            when {
+                selected.isBack -> navigateBackDirectory()
+                selected.isDirectory -> navigateIntoDirectory(selected.uri)
+                else -> openFileInTab(selected)
+            }
         }
     }
-
 
     private fun setupExplorerActions() {
         val openButton: MaterialButton = findViewById(R.id.btnOpenProject)
@@ -161,27 +171,23 @@ class MainActivity : AppCompatActivity() {
         openButton.setOnClickListener {
             pickerMode = PickerMode.OPEN_PROJECT
             treePickerLauncher.launch(null)
-            drawerLayout.closeDrawer(GravityCompat.START)
         }
 
         closeButton.setOnClickListener {
             closeCurrentProject()
-            drawerLayout.closeDrawer(GravityCompat.START)
         }
 
         newButton.setOnClickListener {
             promptCreateProjectDirectory()
-            drawerLayout.closeDrawer(GravityCompat.START)
         }
     }
 
     private fun ensureStorageAccessThenLoadFiles() {
         val saved = getSavedTreeUri()
         if (saved != null) {
-            loadExplorerFromUri(saved)
+            openProjectTree(saved)
             return
         }
-
         showPermissionDialog(force = false)
     }
 
@@ -210,7 +216,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         saveTreeUri(treeUri)
-        loadExplorerFromUri(treeUri)
+        resetForNewProject()
+        navigateIntoDirectory(treeUri, resetStack = true)
     }
 
     private fun promptCreateProjectDirectory() {
@@ -242,7 +249,7 @@ class MainActivity : AppCompatActivity() {
             contentResolver.takePersistableUriPermission(parentTreeUri, IntentFlags.readOnly)
         }
 
-        val parent = DocumentFile.fromTreeUri(this, parentTreeUri)
+        val parent = resolveDirectory(parentTreeUri)
         val existing = parent?.findFile(pendingProjectName)
         val projectDir = existing ?: parent?.createDirectory(pendingProjectName)
 
@@ -253,36 +260,28 @@ class MainActivity : AppCompatActivity() {
 
         saveTreeUri(projectDir.uri)
         statusBar.text = getString(R.string.status_project_created, pendingProjectName)
-        loadExplorerFromUri(projectDir.uri)
+        resetForNewProject()
+        navigateIntoDirectory(projectDir.uri, resetStack = true)
     }
 
-    private fun loadExplorerFromUri(treeUri: Uri) {
+    private fun navigateIntoDirectory(uri: Uri, resetStack: Boolean = false) {
         runCatching {
-            val root = DocumentFile.fromTreeUri(this, treeUri)
-                ?: DocumentFile.fromSingleUri(this, treeUri)
-
-            if (root == null || !root.canRead() || !root.isDirectory) {
+            val directory = resolveDirectory(uri)
+            if (directory == null || !directory.canRead() || !directory.isDirectory) {
                 statusBar.text = getString(R.string.status_cannot_read_storage)
                 return
             }
 
-            explorerFiles.clear()
-            explorerFiles.addAll(collectReadableFiles(root, maxDepth = 8))
-
-            val labels = explorerFiles.map { it.label }
-            fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
-
-            openTabs.clear()
-            tabContainer.removeAllViews()
-            activeFile = null
-
-            if (explorerFiles.isEmpty()) {
-                codeEditor.setText("")
-                statusBar.text = getString(R.string.status_no_supported_files)
-                return
+            if (resetStack) {
+                directoryStack.clear()
             }
 
-            statusBar.text = getString(R.string.status_files_loaded, explorerFiles.size)
+            if (directoryStack.lastOrNull() != directory.uri) {
+                directoryStack.add(directory.uri)
+            }
+
+            renderDirectory(directory)
+            drawerLayout.closeDrawer(GravityCompat.START)
         }.onFailure {
             clearSavedTreeUri()
             closeCurrentProject(clearSaved = false)
@@ -291,39 +290,64 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun closeCurrentProject(clearSaved: Boolean = true) {
-        if (clearSaved) clearSavedTreeUri()
-        explorerFiles.clear()
-        openTabs.clear()
-        activeFile = null
-        tabContainer.removeAllViews()
-        fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
-        codeEditor.setText(getString(R.string.starter_code))
-        updateLineNumbers(codeEditor.text)
-        updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
-        statusBar.text = getString(R.string.status_project_closed)
+    private fun navigateBackDirectory() {
+        if (directoryStack.size <= 1) return
+        directoryStack.removeLast()
+        val target = resolveDirectory(directoryStack.last()) ?: return
+        renderDirectory(target)
     }
 
-    private fun collectReadableFiles(
-        directory: DocumentFile,
-        maxDepth: Int,
-        currentDepth: Int = 0,
-        parentPath: String = ""
-    ): List<ExplorerFile> {
-        if (currentDepth > maxDepth || !directory.isDirectory) return emptyList()
+    private fun renderDirectory(directory: DocumentFile) {
+        explorerEntries.clear()
 
-        val output = mutableListOf<ExplorerFile>()
-        directory.listFiles().forEach { file ->
-            val name = file.name ?: return@forEach
-            val path = if (parentPath.isBlank()) name else "$parentPath/$name"
+        if (directoryStack.size > 1) {
+            explorerEntries.add(
+                ExplorerEntry(
+                    displayName = "..",
+                    uri = directoryStack[directoryStack.lastIndex - 1],
+                    isDirectory = true,
+                    isBack = true
+                )
+            )
+        }
 
-            if (file.isDirectory) {
-                output += collectReadableFiles(file, maxDepth, currentDepth + 1, path)
-            } else if (isLikelyTextFile(file, name)) {
-                output += ExplorerFile(path, file.uri)
+        val children = directory.listFiles().toList().sortedWith(
+            compareBy<DocumentFile> { !it.isDirectory }
+                .thenBy { it.name?.lowercase().orEmpty() }
+        )
+
+        children.forEach { child ->
+            val name = child.name ?: return@forEach
+            if (child.isDirectory) {
+                explorerEntries.add(
+                    ExplorerEntry(
+                        displayName = "📁 $name",
+                        uri = child.uri,
+                        isDirectory = true
+                    )
+                )
+            } else if (isLikelyTextFile(child, name)) {
+                explorerEntries.add(
+                    ExplorerEntry(
+                        displayName = name,
+                        uri = child.uri,
+                        isDirectory = false
+                    )
+                )
             }
         }
-        return output.sortedBy { it.label }
+
+        fileList.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_list_item_1,
+            explorerEntries.map { it.displayName }
+        )
+
+        statusBar.text = if (explorerEntries.isEmpty()) {
+            getString(R.string.status_no_supported_files)
+        } else {
+            getString(R.string.status_files_loaded, explorerEntries.count { !it.isBack })
+        }
     }
 
     private fun isLikelyTextFile(file: DocumentFile, fileName: String): Boolean {
@@ -337,56 +361,75 @@ class MainActivity : AppCompatActivity() {
                 "application/x-sh",
                 "application/x-httpd-php"
             )
-        ) {
-            return true
-        }
+        ) return true
 
         val lower = fileName.lowercase()
         val binaryExtensions = setOf(
-            ".apk", ".aab", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp3", ".mp4",
-            ".avi", ".mkv", ".so", ".dll", ".exe", ".class", ".dex", ".zip", ".rar", ".7z", ".pdf"
+            ".apk", ".aab", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp3", ".mp4", ".avi",
+            ".mkv", ".so", ".dll", ".exe", ".class", ".dex", ".zip", ".rar", ".7z", ".pdf"
         )
-        if (binaryExtensions.any { lower.endsWith(it) }) return false
-
-        return true
+        return binaryExtensions.none { lower.endsWith(it) }
     }
 
-    private fun openFileInTab(file: ExplorerFile) {
-        if (openTabs.none { it.uri == file.uri }) {
-            openTabs.add(file)
+    private fun openFileInTab(entry: ExplorerEntry) {
+        val name = entry.displayName
+        val tab = openTabs.find { it.uri == entry.uri } ?: OpenTab(name = name, uri = entry.uri).also {
+            openTabs.add(it)
         }
-        activeFile = file
+
+        activeTab = tab
         renderTabs()
-        loadFileContent(file)
+        loadFileContent(tab)
     }
 
     private fun renderTabs() {
         tabContainer.removeAllViews()
-        openTabs.forEach { file ->
+        openTabs.forEach { tab ->
             val chip = Chip(this).apply {
-                text = file.label.substringAfterLast('/')
+                text = tab.name
                 isCheckable = true
-                isChecked = activeFile?.uri == file.uri
+                isChecked = activeTab?.uri == tab.uri
                 setOnClickListener {
-                    activeFile = file
+                    activeTab = tab
                     renderTabs()
-                    loadFileContent(file)
+                    loadFileContent(tab)
                 }
             }
             tabContainer.addView(chip)
         }
     }
 
-    private fun loadFileContent(file: ExplorerFile) {
+    private fun loadFileContent(tab: OpenTab) {
         runCatching {
-            contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
+            contentResolver.openInputStream(tab.uri)?.bufferedReader()?.use { it.readText() }
         }.onSuccess { text ->
             codeEditor.setText(text ?: "")
             codeEditor.setSelection(codeEditor.text.length)
-            statusBar.text = getString(R.string.status_open_file, file.label)
+            statusBar.text = getString(R.string.status_open_file, tab.name)
         }.onFailure {
             statusBar.text = getString(R.string.status_failed_open_file)
         }
+    }
+
+    private fun resetForNewProject() {
+        explorerEntries.clear()
+        openTabs.clear()
+        activeTab = null
+        directoryStack.clear()
+        tabContainer.removeAllViews()
+        fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
+        codeEditor.setText("")
+        updateLineNumbers(codeEditor.text)
+        updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
+    }
+
+    private fun closeCurrentProject(clearSaved: Boolean = true) {
+        if (clearSaved) clearSavedTreeUri()
+        resetForNewProject()
+        codeEditor.setText(getString(R.string.starter_code))
+        updateLineNumbers(codeEditor.text)
+        updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
+        statusBar.text = getString(R.string.status_project_closed)
     }
 
     private fun updateLineNumbers(text: CharSequence?) {
@@ -415,6 +458,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         statusBar.text = getString(R.string.status_cursor, line, col)
+    }
+
+    private fun resolveDirectory(uri: Uri): DocumentFile? {
+        return DocumentFile.fromTreeUri(this, uri) ?: DocumentFile.fromSingleUri(this, uri)
     }
 
     private fun saveTreeUri(uri: Uri) {

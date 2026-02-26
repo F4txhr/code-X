@@ -116,35 +116,54 @@
         android:orientation="vertical"
         android:padding="12dp">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="8dp"
-            android:text="@string/explorer_title"
-            android:textColor="#CCCCCC"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingBottom="8dp">
 
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/explorer_title"
+                android:textColor="#CCCCCC"
+                android:textStyle="bold" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnOpenProject"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="6dp"
-            android:text="@string/action_open_project" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenProject"
+                style="@style/Widget.Material3.Button.Icon"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:contentDescription="@string/action_open_project"
+                android:padding="0dp"
+                android:text=""
+                app:icon="@android:drawable/ic_menu_upload" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCloseProject"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="6dp"
-            android:text="@string/action_close_project" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnNewProject"
+                style="@style/Widget.Material3.Button.Icon"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/action_new_project"
+                android:padding="0dp"
+                android:text=""
+                app:icon="@android:drawable/ic_input_add" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnNewProject"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            android:text="@string/action_new_project" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCloseProject"
+                style="@style/Widget.Material3.Button.Icon"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/action_close_project"
+                android:padding="0dp"
+                android:text=""
+                app:icon="@android:drawable/ic_menu_close_clear_cancel" />
+        </LinearLayout>
+
         <ListView
             android:id="@+id/fileList"
             android:layout_width="match_parent"

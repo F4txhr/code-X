@@ -6,7 +6,8 @@ Project ini adalah aplikasi Android native sederhana yang berfungsi sebagai code
 
 - UI ala editor (toolbar, tab bar, explorer drawer, status bar)
 - Explorer membaca file dari **internal storage** (folder yang dipilih user)
-- Bisa **Open Project Directory**, **Close Project**, dan **Create New Project Directory** dari menu toolbar
+- Tombol project minimalis ada di samping label **EXPLORER** (open/new/close)
+- Explorer tampil model folder bertingkat (klik folder untuk masuk, bukan path `folder/file` datar)
 - Tab terbuka saat file dipilih dari explorer
 - Line number + status cursor (Ln/Col)
 
@@ -80,4 +81,4 @@ Di menu toolbar (kanan atas), tersedia:
 
 ## Deteksi jenis file
 
-Explorer sekarang tidak cuma ekstensi tertentu; app akan menampilkan hampir semua file yang terdeteksi sebagai teks (berdasarkan MIME/ekstensi), dan otomatis menghindari file biner umum seperti gambar, video, archive, APK, dll.
+Explorer mendeteksi file berbasis MIME text dan beberapa MIME source code umum, serta menyaring file biner populer (gambar/video/archive/apk/dll). Jadi berbagai file bahasa pemrograman tetap terbaca tanpa perlu daftar ekstensi kaku.
