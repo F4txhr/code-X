@@ -27,27 +27,45 @@ gradle --no-daemon assembleDebug
 
 ## Pakai GitHub Codespaces (bisa)
 
-Bisa. Repo ini sekarang sudah disiapkan `.devcontainer` agar Codespaces:
+Bisa. Repo ini sudah disiapkan `.devcontainer` agar Codespaces:
 
 - otomatis pakai **Java 17**
 - install Android SDK command-line tools
 - install package SDK yang dibutuhkan (`platform-tools`, `platforms;android-34`, `build-tools;34.0.0`)
 
-Langkah:
+### Cara build di Codespaces
 
 1. Buka repo di Codespaces.
-2. Tunggu `postCreate` selesai.
+2. Tunggu proses `postCreate` selesai.
 3. Jalankan build:
 
 ```bash
-gradle --no-daemon assembleDebug
+./scripts/codespace-build.sh
 ```
 
-APK debug akan ada di:
+Script di atas akan:
+- menjalankan `gradle --no-daemon assembleDebug`
+- menyalin hasil build ke folder `artifacts/` dengan nama timestamp
+
+### Cara ambil hasil build (APK) dari Codespaces
+
+Setelah build sukses, ada 2 lokasi APK:
+
+1. Lokasi output default Gradle:
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
+
+2. Lokasi salinan artifact (lebih mudah di-download):
+
+```text
+artifacts/native-code-editor-debug-YYYYMMDD-HHMMSS.apk
+```
+
+Lalu download file APK dari panel **Explorer** di VS Code Codespaces:
+- klik kanan file `.apk`
+- pilih **Download...**
 
 ## CI/CD GitHub Actions
 
