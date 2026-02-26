@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_search"
+        android:icon="@android:drawable/ic_menu_search"
+        android:showAsAction="ifRoom"
+        android:title="Search" />
+    <item
+        android:id="@+id/action_save"
+        android:icon="@android:drawable/ic_menu_save"
+        android:showAsAction="ifRoom"
+        android:title="Save" />
+
+    <item
+        android:id="@+id/action_open_project"
+        android:title="Open Project Directory" />
+    <item
+        android:id="@+id/action_close_project"
+        android:title="Close Project" />
+    <item
+        android:id="@+id/action_new_project"
+        android:title="Create New Project Directory" />
+</menu>

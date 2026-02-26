@@ -1,0 +1,515 @@
+package com.example.nativecodeeditor
+
+import android.graphics.Typeface
+import android.net.Uri
+import android.os.Bundle
+import android.text.Editable
+import android.text.InputType
+import android.text.TextWatcher
+import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ListView
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.GravityCompat
+import androidx.documentfile.provider.DocumentFile
+import androidx.drawerlayout.widget.DrawerLayout
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.chip.Chip
+
+class MainActivity : AppCompatActivity() {
+
+    private data class ExplorerEntry(
+        val displayName: String,
+        val name: String,
+        val uri: Uri,
+        val isDirectory: Boolean,
+        val depth: Int
+    )
+
+    private data class OpenTab(
+        val name: String,
+        val uri: Uri
+    )
+
+    private enum class PickerMode {
+        OPEN_PROJECT,
+        CREATE_PROJECT
+    }
+
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var codeEditor: EditText
+    private lateinit var lineNumbers: TextView
+    private lateinit var statusBar: TextView
+    private lateinit var fileList: ListView
+    private lateinit var tabContainer: LinearLayout
+
+    private val explorerEntries = mutableListOf<ExplorerEntry>()
+    private val openTabs = mutableListOf<OpenTab>()
+    private val expandedDirectories = mutableSetOf<Uri>()
+
+    private var rootUri: Uri? = null
+    private var activeTab: OpenTab? = null
+    private var pickerMode: PickerMode = PickerMode.OPEN_PROJECT
+    private var pendingProjectName: String = ""
+
+    private val treePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) {
+            statusBar.text = getString(R.string.status_permission_required)
+            return@registerForActivityResult
+        }
+
+        when (pickerMode) {
+            PickerMode.OPEN_PROJECT -> openProjectTree(uri)
+            PickerMode.CREATE_PROJECT -> createAndOpenProjectDirectory(uri)
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        drawerLayout = findViewById(R.id.drawerLayout)
+        codeEditor = findViewById(R.id.codeEditor)
+        lineNumbers = findViewById(R.id.lineNumbers)
+        statusBar = findViewById(R.id.statusBar)
+        fileList = findViewById(R.id.fileList)
+        tabContainer = findViewById(R.id.tabContainer)
+
+        setupToolbar()
+        setupEditor()
+        setupExplorerList()
+        setupExplorerActions()
+
+        ensureStorageAccessThenLoadFiles()
+    }
+
+    private fun setupToolbar() {
+        val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
+
+        toolbar.setNavigationOnClickListener {
+            drawerLayout.openDrawer(GravityCompat.START)
+        }
+
+        toolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_search -> {
+                    statusBar.text = getString(R.string.status_search_pending)
+                    true
+                }
+
+                R.id.action_save -> {
+                    val current = activeTab?.name ?: getString(R.string.status_no_file_open)
+                    statusBar.text = getString(R.string.status_save_preview, current)
+                    true
+                }
+
+                R.id.action_open_project -> {
+                    pickerMode = PickerMode.OPEN_PROJECT
+                    treePickerLauncher.launch(null)
+                    true
+                }
+
+                R.id.action_close_project -> {
+                    closeCurrentProject()
+                    true
+                }
+
+                R.id.action_new_project -> {
+                    promptCreateProjectDirectory()
+                    true
+                }
+
+                else -> false
+            }
+        }
+    }
+
+    private fun setupEditor() {
+        codeEditor.typeface = Typeface.MONOSPACE
+        lineNumbers.typeface = Typeface.MONOSPACE
+
+        codeEditor.setText(getString(R.string.starter_code))
+        updateLineNumbers(codeEditor.text)
+        updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
+
+        codeEditor.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                updateLineNumbers(s)
+                updateCursorStatus(s, codeEditor.selectionStart)
+            }
+        })
+
+        codeEditor.setOnSelectionChangedListenerCompat {
+            updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
+        }
+    }
+
+    private fun setupExplorerList() {
+        fileList.setOnItemClickListener { _, _, position, _ ->
+            val selected = explorerEntries[position]
+            if (selected.isDirectory) {
+                toggleDirectory(selected.uri)
+            } else {
+                openFileInTab(selected)
+            }
+        }
+    }
+
+    private fun setupExplorerActions() {
+        val openButton: MaterialButton = findViewById(R.id.btnOpenProject)
+        val closeButton: MaterialButton = findViewById(R.id.btnCloseProject)
+        val newButton: MaterialButton = findViewById(R.id.btnNewProject)
+
+        openButton.setOnClickListener {
+            pickerMode = PickerMode.OPEN_PROJECT
+            treePickerLauncher.launch(null)
+        }
+
+        closeButton.setOnClickListener {
+            closeCurrentProject()
+        }
+
+        newButton.setOnClickListener {
+            promptCreateProjectDirectory()
+        }
+    }
+
+    private fun ensureStorageAccessThenLoadFiles() {
+        val saved = getSavedTreeUri()
+        if (saved != null) {
+            openProjectTree(saved)
+            return
+        }
+        showPermissionDialog(force = false)
+    }
+
+    private fun showPermissionDialog(force: Boolean) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.permission_dialog_title)
+            .setMessage(R.string.permission_dialog_message)
+            .setCancelable(false)
+            .setPositiveButton(R.string.permission_dialog_grant) { _, _ ->
+                pickerMode = PickerMode.OPEN_PROJECT
+                treePickerLauncher.launch(null)
+            }
+            .apply {
+                if (!force) {
+                    setNegativeButton(R.string.permission_dialog_later) { _, _ ->
+                        statusBar.text = getString(R.string.status_permission_required)
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun openProjectTree(treeUri: Uri) {
+        runCatching {
+            contentResolver.takePersistableUriPermission(treeUri, IntentFlags.readOnly)
+        }
+
+        saveTreeUri(treeUri)
+        resetForNewProject()
+
+        rootUri = treeUri
+        expandedDirectories.add(treeUri)
+        renderExplorerTree()
+        drawerLayout.closeDrawer(GravityCompat.START)
+    }
+
+    private fun promptCreateProjectDirectory() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.dialog_new_project_hint)
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_new_project_title)
+            .setView(input)
+            .setPositiveButton(R.string.dialog_new_project_create) { _, _ ->
+                val name = input.text?.toString()?.trim().orEmpty()
+                if (name.isBlank()) {
+                    statusBar.text = getString(R.string.status_project_create_failed)
+                    return@setPositiveButton
+                }
+
+                pendingProjectName = name
+                pickerMode = PickerMode.CREATE_PROJECT
+                treePickerLauncher.launch(null)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun createAndOpenProjectDirectory(parentTreeUri: Uri) {
+        runCatching {
+            contentResolver.takePersistableUriPermission(parentTreeUri, IntentFlags.readOnly)
+        }
+
+        val parent = resolveDirectory(parentTreeUri)
+        val existing = parent?.findFile(pendingProjectName)
+        val projectDir = existing ?: parent?.createDirectory(pendingProjectName)
+
+        if (projectDir == null || !projectDir.canRead()) {
+            statusBar.text = getString(R.string.status_project_create_failed)
+            return
+        }
+
+        saveTreeUri(projectDir.uri)
+        statusBar.text = getString(R.string.status_project_created, pendingProjectName)
+        resetForNewProject()
+
+        rootUri = projectDir.uri
+        expandedDirectories.add(projectDir.uri)
+        renderExplorerTree()
+    }
+
+    private fun toggleDirectory(uri: Uri) {
+        if (expandedDirectories.contains(uri)) {
+            expandedDirectories.remove(uri)
+        } else {
+            expandedDirectories.add(uri)
+        }
+        renderExplorerTree()
+    }
+
+    private fun renderExplorerTree() {
+        runCatching {
+            val root = rootUri?.let { resolveDirectory(it) }
+            if (root == null || !root.canRead() || !root.isDirectory) {
+                statusBar.text = getString(R.string.status_cannot_read_storage)
+                return
+            }
+
+            explorerEntries.clear()
+            explorerEntries.addAll(buildVisibleTreeEntries(root, depth = 0))
+
+            fileList.adapter = ArrayAdapter(
+                this,
+                android.R.layout.simple_list_item_1,
+                explorerEntries.map { it.displayName }
+            )
+
+            statusBar.text = if (explorerEntries.isEmpty()) {
+                getString(R.string.status_no_supported_files)
+            } else {
+                getString(R.string.status_files_loaded, explorerEntries.size)
+            }
+        }.onFailure {
+            clearSavedTreeUri()
+            closeCurrentProject(clearSaved = false)
+            statusBar.text = getString(R.string.status_storage_permission_revoked)
+            showPermissionDialog(force = true)
+        }
+    }
+
+    private fun buildVisibleTreeEntries(
+        directory: DocumentFile,
+        depth: Int
+    ): List<ExplorerEntry> {
+        val entries = mutableListOf<ExplorerEntry>()
+
+        val children = directory.listFiles().toList().sortedWith(
+            compareBy<DocumentFile> { !it.isDirectory }
+                .thenBy { it.name?.lowercase().orEmpty() }
+        )
+
+        children.forEach { child ->
+            val name = child.name ?: return@forEach
+            val indent = "  ".repeat(depth)
+
+            if (child.isDirectory) {
+                val expanded = expandedDirectories.contains(child.uri)
+                val marker = if (expanded) "▾" else "▸"
+                entries.add(
+                    ExplorerEntry(
+                        displayName = "$indent$marker $name",
+                        name = name,
+                        uri = child.uri,
+                        isDirectory = true,
+                        depth = depth
+                    )
+                )
+
+                if (expanded) {
+                    entries.addAll(buildVisibleTreeEntries(child, depth + 1))
+                }
+            } else if (isLikelyTextFile(child, name)) {
+                entries.add(
+                    ExplorerEntry(
+                        displayName = "$indent$name",
+                        name = name,
+                        uri = child.uri,
+                        isDirectory = false,
+                        depth = depth
+                    )
+                )
+            }
+        }
+
+        return entries
+    }
+
+    private fun isLikelyTextFile(file: DocumentFile, fileName: String): Boolean {
+        val mime = file.type.orEmpty().lowercase()
+        if (mime.startsWith("text/")) return true
+        if (mime in setOf(
+                "application/json",
+                "application/xml",
+                "application/javascript",
+                "application/x-javascript",
+                "application/x-sh",
+                "application/x-httpd-php"
+            )
+        ) return true
+
+        val lower = fileName.lowercase()
+        val binaryExtensions = setOf(
+            ".apk", ".aab", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp3", ".mp4", ".avi",
+            ".mkv", ".so", ".dll", ".exe", ".class", ".dex", ".zip", ".rar", ".7z", ".pdf"
+        )
+        return binaryExtensions.none { lower.endsWith(it) }
+    }
+
+    private fun openFileInTab(entry: ExplorerEntry) {
+        val tab = openTabs.find { it.uri == entry.uri } ?: OpenTab(name = entry.name, uri = entry.uri).also {
+            openTabs.add(it)
+        }
+
+        activeTab = tab
+        renderTabs()
+        loadFileContent(tab)
+    }
+
+    private fun renderTabs() {
+        tabContainer.removeAllViews()
+        openTabs.forEach { tab ->
+            val chip = Chip(this).apply {
+                text = tab.name
+                isCheckable = true
+                isChecked = activeTab?.uri == tab.uri
+                setOnClickListener {
+                    activeTab = tab
+                    renderTabs()
+                    loadFileContent(tab)
+                }
+            }
+            tabContainer.addView(chip)
+        }
+    }
+
+    private fun loadFileContent(tab: OpenTab) {
+        runCatching {
+            contentResolver.openInputStream(tab.uri)?.bufferedReader()?.use { it.readText() }
+        }.onSuccess { text ->
+            codeEditor.setText(text ?: "")
+            codeEditor.setSelection(codeEditor.text.length)
+            statusBar.text = getString(R.string.status_open_file, tab.name)
+        }.onFailure {
+            statusBar.text = getString(R.string.status_failed_open_file)
+        }
+    }
+
+    private fun resetForNewProject() {
+        explorerEntries.clear()
+        openTabs.clear()
+        activeTab = null
+        rootUri = null
+        expandedDirectories.clear()
+        tabContainer.removeAllViews()
+        fileList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
+        codeEditor.setText("")
+        updateLineNumbers(codeEditor.text)
+        updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
+    }
+
+    private fun closeCurrentProject(clearSaved: Boolean = true) {
+        if (clearSaved) clearSavedTreeUri()
+        resetForNewProject()
+        codeEditor.setText(getString(R.string.starter_code))
+        updateLineNumbers(codeEditor.text)
+        updateCursorStatus(codeEditor.text, codeEditor.selectionStart)
+        statusBar.text = getString(R.string.status_project_closed)
+    }
+
+    private fun updateLineNumbers(text: CharSequence?) {
+        val lineCount = (text?.count { it == '\n' } ?: 0) + 1
+        val builder = StringBuilder()
+        for (line in 1..lineCount) {
+            builder.append(line)
+            if (line != lineCount) builder.append('\n')
+        }
+        lineNumbers.text = builder.toString()
+    }
+
+    private fun updateCursorStatus(text: CharSequence?, cursorPosition: Int) {
+        val safeText = text ?: ""
+        val safeCursor = cursorPosition.coerceIn(0, safeText.length)
+
+        var line = 1
+        var col = 1
+        for (i in 0 until safeCursor) {
+            if (safeText[i] == '\n') {
+                line++
+                col = 1
+            } else {
+                col++
+            }
+        }
+
+        statusBar.text = getString(R.string.status_cursor, line, col)
+    }
+
+    private fun resolveDirectory(uri: Uri): DocumentFile? {
+        return DocumentFile.fromTreeUri(this, uri) ?: DocumentFile.fromSingleUri(this, uri)
+    }
+
+    private fun saveTreeUri(uri: Uri) {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .edit()
+            .putString(KEY_TREE_URI, uri.toString())
+            .apply()
+    }
+
+    private fun getSavedTreeUri(): Uri? {
+        val value = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getString(KEY_TREE_URI, null)
+            ?: return null
+        return runCatching { Uri.parse(value) }.getOrNull()
+    }
+
+    private fun clearSavedTreeUri() {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .edit()
+            .remove(KEY_TREE_URI)
+            .apply()
+    }
+
+    private object IntentFlags {
+        const val readOnly =
+            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+    }
+
+    companion object {
+        private const val PREFS_NAME = "editor_prefs"
+        private const val KEY_TREE_URI = "tree_uri"
+    }
+}
+
+private fun EditText.setOnSelectionChangedListenerCompat(onSelectionChanged: () -> Unit) {
+    setOnClickListener { onSelectionChanged() }
+    setOnKeyListener { _, _, _ ->
+        onSelectionChanged()
+        false
+    }
+}
